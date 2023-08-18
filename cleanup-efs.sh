@@ -15,6 +15,19 @@ for REGION in $REGIONS; do
     for EFS_ID in $EFS_IDS; do
         echo "Attempting to delete EFS: $EFS_ID in region: $REGION"
 
+        # List all mount targets for the EFS file system
+        MOUNT_TARGETS=$(aws efs describe-mount-targets --file-system-id $EFS_ID --region $REGION --query "MountTargets[].MountTargetId" --output text)
+
+        # Delete the mount targets
+        for MOUNT_TARGET in $MOUNT_TARGETS; do
+            aws efs delete-mount-target --mount-target-id $MOUNT_TARGET --region $REGION
+        done
+
+        # Wait for the mount targets to be deleted
+        while [ "$(aws efs describe-mount-targets --file-system-id $EFS_ID --region $REGION --query "MountTargets[]" --output text)" != "" ]; do
+            sleep 10
+        done
+
         # Try to delete the EFS file system
         if aws efs delete-file-system --file-system-id $EFS_ID --region $REGION ; then
             echo "Successfully deleted EFS: $EFS_ID in region: $REGION"

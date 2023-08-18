@@ -12,6 +12,14 @@ for REGION in $REGIONS; do
         echo "Backup plans in region $REGION:"
         for PLAN in $PLANS; do
             echo $PLAN
+
+            # List and delete backup plan selections
+            SELECTIONS=$(aws backup list-backup-plan-templates --region $REGION --query "BackupPlanTemplatesList[].BackupPlanTemplateId" --output text)
+            for SELECTION in $SELECTIONS; do
+                aws backup delete-backup-selection --backup-plan-id $PLAN --selection-id $SELECTION --region $REGION
+            done
+
+            # Delete the backup plan
             aws backup delete-backup-plan --backup-plan-id $PLAN --region $REGION
         done
     else
