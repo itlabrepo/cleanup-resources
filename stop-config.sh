@@ -6,45 +6,44 @@ REGIONS=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
 for REGION in $REGIONS; do
     echo "Checking region: $REGION"
 
-    # Delete AWS Config delivery channels
-    CHANNELS=$(aws configservice describe-delivery-channels --region $REGION --query "DeliveryChannels[].name" --output text)
-    for CHANNEL in $CHANNELS; do
-        aws configservice delete-delivery-channel --delivery-channel-name $CHANNEL --region $REGION
+    # List all AWS Config rules in the current region
+    RULES=$(aws configservice describe-config-rules --region $REGION --query "ConfigRules[].ConfigRuleName" --output text)
+
+    for RULE in $RULES; do
+        # Check if the rule is a service-linked rule
+        IS_SERVICE_LINKED=$(aws configservice describe-config-rules --config-rule-names $RULE --region $REGION --query "ConfigRules[?Source.Owner=='AWS'].ConfigRuleName" --output text)
+
+        # Skip service-linked rules
+        if [ -n "$IS_SERVICE_LINKED" ]; then
+            echo "Skipping service-linked rule: $RULE in region: $REGION"
+            continue
+        fi
+
+        # Delete the rule
+        echo "Deleting rule: $RULE in region: $REGION"
+        aws configservice delete-config-rule --config-rule-name $RULE --region $REGION
     done
 
-    # Stop AWS Config recorders
+    # List all AWS Config recorders in the current region
     RECORDERS=$(aws configservice describe-configuration-recorders --region $REGION --query "ConfigurationRecorders[].name" --output text)
-    for RECORDER in $RECORDERS; do
-        aws configservice stop-configuration-recorder --configuration-recorder-name $RECORDER --region $REGION
-    done
 
-    # Delete AWS Config recorders
     for RECORDER in $RECORDERS; do
+        # Stop the recorder
+        echo "Stopping recorder: $RECORDER in region: $REGION"
+        aws configservice stop-configuration-recorder --configuration-recorder-name $RECORDER --region $REGION
+
+        # Delete the recorder
+        echo "Deleting recorder: $RECORDER in region: $REGION"
         aws configservice delete-configuration-recorder --configuration-recorder-name $RECORDER --region $REGION
     done
 
-    # Delete AWS Config configuration aggregators
-    AGGREGATORS=$(aws configservice describe-configuration-aggregators --region $REGION --query "ConfigurationAggregators[].ConfigurationAggregatorName" --output text)
-    for AGGREGATOR in $AGGREGATORS; do
-        aws configservice delete-configuration-aggregator --configuration-aggregator-name $AGGREGATOR --region $REGION
-    done
+    # List all AWS Config delivery channels in the current region
+    CHANNELS=$(aws configservice describe-delivery-channels --region $REGION --query "DeliveryChannels[].name" --output text)
 
-    # Delete AWS Config conformance packs
-    PACKS=$(aws configservice describe-conformance-packs --region $REGION --query "ConformancePackDetails[].ConformancePackName" --output text)
-    for PACK in $PACKS; do
-        aws configservice delete-conformance-pack --conformance-pack-name $PACK --region $REGION
-    done
-
-    # Delete AWS Config organization conformance packs
-    ORG_PACKS=$(aws configservice describe-organization-conformance-packs --region $REGION --query "OrganizationConformancePacks[].OrganizationConformancePackName" --output text)
-    for ORG_PACK in $ORG_PACKS; do
-        aws configservice delete-organization-conformance-pack --organization-conformance-pack-name $ORG_PACK --region $REGION
-    done
-
-    # Delete AWS Config rules
-    RULES=$(aws configservice describe-config-rules --region $REGION --query "ConfigRules[].ConfigRuleName" --output text)
-    for RULE in $RULES; do
-        aws configservice delete-config-rule --config-rule-name $RULE --region $REGION
+    for CHANNEL in $CHANNELS; do
+        # Delete the delivery channel
+        echo "Deleting delivery channel: $CHANNEL in region: $REGION"
+        aws configservice delete-delivery-channel --delivery-channel-name $CHANNEL --region $REGION
     done
 done
 
