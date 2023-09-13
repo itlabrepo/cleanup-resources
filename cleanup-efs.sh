@@ -8,52 +8,42 @@ REGIONS=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
 
 for REGION in $REGIONS; do
     echo "Checking region: $REGION"
+    # Get a list of all EFS IDs in the region
+    EFS_IDS=$(aws efs describe-file-systems --region $REGION --query "FileSystems[].FileSystemId" --output text)
 
-    # List and delete backup plans
-    PLANS=$(aws backup list-backup-plans --region $REGION --query "BackupPlansList[?BackupPlanName!='automatic-backup-plan'].BackupPlanId" --output text)
-    if [ -n "$PLANS" ]; then
-        echo "Backup plans in region $REGION:"
-        for PLAN in $PLANS; do
-            echo $PLAN
+    # Initialize an empty string to store the EFS IDs that cannot be deleted
+    UNDELETABLE_EFS=""
 
-            # List and delete backup plan selections
-            SELECTIONS=$(aws backup list-backup-plan-templates --region $REGION --query "BackupPlanTemplatesList[].BackupPlanTemplateId" --output text)
-            for SELECTION in $SELECTIONS; do
-                aws backup delete-backup-selection --backup-plan-id $PLAN --selection-id $SELECTION --region $REGION
-            done
-
-            # Delete the backup plan
-            aws backup delete-backup-plan --backup-plan-id $PLAN --region $REGION
+    # For each EFS, delete its mount targets and then try to delete the EFS
+    for EFS_ID in $EFS_IDS; do
+        # Get the mount targets for the EFS
+        MOUNT_TARGETS=$(aws efs describe-mount-targets --file-system-id $EFS_ID --region $REGION --query "MountTargets[].MountTargetId" --output text)
+        
+        # Delete each mount target
+        for MT in $MOUNT_TARGETS; do
+            aws efs delete-mount-target --mount-target-id $MT --region $REGION
+            echo "Deleted mount target: $MT for EFS: $EFS_ID"
         done
-    else
-        echo "No backup plans found in region $REGION."
-    fi
-
-    # List backup vaults
-    VAULTS=$(aws backup list-backup-vaults --region $REGION --query "BackupVaultList[].BackupVaultName" --output text)
-    if [ -n "$VAULTS" ]; then
-        echo "Backup vaults in region $REGION:"
-        for VAULT in $VAULTS; do
-            echo $VAULT
-
-            # List and delete recovery points
-            RECOVERY_POINTS=$(aws backup list-recovery-points-by-backup-vault --backup-vault-name $VAULT --region $REGION --query "RecoveryPoints[].RecoveryPointArn" --output text)
-            if [ -n "$RECOVERY_POINTS" ]; then
-                echo "Recovery points in backup vault $VAULT:"
-                for RECOVERY_POINT in $RECOVERY_POINTS; do
-                    echo $RECOVERY_POINT
-                    aws backup delete-recovery-point --backup-vault-name $VAULT --recovery-point-arn $RECOVERY_POINT --region $REGION
-                done
-            else
-                echo "No recovery points found in backup vault $VAULT."
-            fi
-
-            # Delete the backup vault
-            aws backup delete-backup-vault --backup-vault-name $VAULT --region $REGION
-        done
-    else
-        echo "No backup vaults found in region $REGION."
-    fi
+        
+        # Wait for a few seconds to ensure all mount targets are deleted
+        sleep 20
+        
+        # Try to delete the EFS
+        if aws efs delete-file-system --file-system-id $EFS_ID --region $REGION ; then
+            echo "Successfully deleted EFS: $EFS_ID"
+        else
+            UNDELETABLE_EFS="$UNDELETABLE_EFS $EFS_ID"
+        fi
+    done
 done
 
-echo "AWS Backup resources and data have been cleaned up in all regions."
+# Print the EFS IDs that cannot be deleted
+if [ ! -z "$UNDELETABLE_EFS" ]; then
+    echo "The following EFS instances could not be deleted:"
+    for EFS in $UNDELETABLE_EFS; do
+        echo $EFS
+    done
+else
+    echo "All EFS instances in the region were deleted successfully."
+fi
+
