@@ -3,7 +3,8 @@
 # Initialize empty strings to store resources that cannot be deleted
 UNDELETABLE_INSTANCES=""
 UNDELETABLE_CLUSTERS=""
-UNDELETABLE_SNAPSHOTS=""
+UNDELETABLE_DB_SNAPSHOTS=""
+UNDELETABLE_CLUSTER_SNAPSHOTS=""
 
 # Get a list of all AWS regions
 REGIONS=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
@@ -36,13 +37,23 @@ for REGION in $REGIONS; do
         fi
     done
 
-    # Delete RDS snapshots
-    SNAPSHOTS=$(aws rds describe-db-snapshots --region $REGION --query "DBSnapshots[].DBSnapshotIdentifier" --output text)
-    for SNAPSHOT_ID in $SNAPSHOTS; do
-        if aws rds delete-db-snapshot --db-snapshot-identifier $SNAPSHOT_ID --region $REGION ; then
-            echo "Successfully deleted RDS snapshot: $SNAPSHOT_ID in region: $REGION"
+    # Delete RDS DB snapshots
+    DB_SNAPSHOTS=$(aws rds describe-db-snapshots --region $REGION --query "DBSnapshots[].DBSnapshotIdentifier" --output text)
+    for SNAPSHOT_ID in $DB_SNAPSHOTS; do
+        if aws rds delete-db-snapshot --db-snapshot-identifier $SNAPSHOT_ID --region $REGION --query "DBSnapshot.DBSnapshotIdentifier" --output text; then
+            echo "Successfully deleted RDS DB snapshot: $SNAPSHOT_ID in region: $REGION"
         else
-            UNDELETABLE_SNAPSHOTS="$UNDELETABLE_SNAPSHOTS $SNAPSHOT_ID:$REGION"
+            UNDELETABLE_DB_SNAPSHOTS="$UNDELETABLE_DB_SNAPSHOTS $SNAPSHOT_ID:$REGION"
+        fi
+    done
+
+    # Delete RDS cluster snapshots
+    CLUSTER_SNAPSHOTS=$(aws rds describe-db-cluster-snapshots --region $REGION --query "DBClusterSnapshots[].DBClusterSnapshotIdentifier" --output text)
+    for CLUSTER_SNAPSHOT_ID in $CLUSTER_SNAPSHOTS; do
+        if aws rds delete-db-cluster-snapshot --db-cluster-snapshot-identifier $CLUSTER_SNAPSHOT_ID --region $REGION --query "DBClusterSnapshot.DBClusterSnapshotIdentifier" --output text; then
+            echo "Successfully deleted RDS cluster snapshot: $CLUSTER_SNAPSHOT_ID in region: $REGION"
+        else
+            UNDELETABLE_CLUSTER_SNAPSHOTS="$UNDELETABLE_CLUSTER_SNAPSHOTS $CLUSTER_SNAPSHOT_ID:$REGION"
         fi
     done
 done
@@ -62,9 +73,16 @@ if [ ! -z "$UNDELETABLE_CLUSTERS" ]; then
     done
 fi
 
-if [ ! -z "$UNDELETABLE_SNAPSHOTS" ]; then
-    echo "The following RDS snapshots could not be deleted:"
-    for SNAPSHOT in $UNDELETABLE_SNAPSHOTS; do
+if [ ! -z "$UNDELETABLE_DB_SNAPSHOTS" ]; then
+    echo "The following RDS DB snapshots could not be deleted:"
+    for SNAPSHOT in $UNDELETABLE_DB_SNAPSHOTS; do
         echo $SNAPSHOT
+    done
+fi
+
+if [ ! -z "$UNDELETABLE_CLUSTER_SNAPSHOTS" ]; then
+    echo "The following RDS cluster snapshots could not be deleted:"
+    for CLUSTER_SNAPSHOT in $UNDELETABLE_CLUSTER_SNAPSHOTS; do
+        echo $CLUSTER_SNAPSHOT
     done
 fi
