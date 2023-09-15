@@ -12,6 +12,20 @@ for BUCKET in $BUCKETS; do
     # Empty the bucket
     aws s3 rm s3://$BUCKET/ --recursive
 
+    # Delete all versions of all objects (for versioned buckets)
+    aws s3api list-object-versions --bucket $BUCKET | \
+    jq -r '.Versions[] | .Key + " " + .VersionId' | \
+    while read KEY VERSION_ID; do
+        aws s3api delete-object --bucket $BUCKET --key "$KEY" --version-id "$VERSION_ID"
+    done
+
+    # Delete all delete markers (for versioned buckets)
+    aws s3api list-object-versions --bucket $BUCKET | \
+    jq -r '.DeleteMarkers[]? | .Key + " " + .VersionId' | \
+    while read KEY VERSION_ID; do
+        aws s3api delete-object --bucket $BUCKET --key "$KEY" --version-id "$VERSION_ID"
+    done
+
     # Try to delete the bucket
     if aws s3api delete-bucket --bucket $BUCKET ; then
         echo "Successfully deleted bucket: $BUCKET"
