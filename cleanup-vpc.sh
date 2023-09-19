@@ -28,13 +28,13 @@ for REGION in $REGIONS; do
         done
 
         # Delete all network ACLs associated with the VPC (excluding the default)
-        NACLS=$(aws ec2 describe-network-acls --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "NetworkAcls[?IsDefault!=`true`].NetworkAclId" --output text)
+        NACLS=$(aws ec2 describe-network-acls --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "NetworkAcls[?IsDefault!=true].NetworkAclId" --output text)
         for NACL in $NACLS; do
             aws ec2 delete-network-acl --network-acl-id $NACL --region $REGION
         done
 
         # Delete all security groups associated with the VPC (excluding the default)
-        SEC_GROUPS=$(aws ec2 describe-security-groups --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "SecurityGroups[?GroupName!=`default`].GroupId" --output text)
+        SEC_GROUPS=$(aws ec2 describe-security-groups --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "SecurityGroups[?GroupName!=default].GroupId" --output text)
         for SEC_GROUP in $SEC_GROUPS; do
             # Revoke all inbound and outbound rules
             aws ec2 revoke-security-group-ingress --group-id $SEC_GROUP --protocol all --port all --cidr 0.0.0.0/0 --region $REGION
