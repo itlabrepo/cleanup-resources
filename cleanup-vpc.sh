@@ -14,11 +14,29 @@ for REGION in $REGIONS; do
     VPCS=$(aws ec2 describe-vpcs --region $REGION --query "Vpcs[].VpcId" --output text)
     
     for VPC_ID in $VPCS; do
+        # Delete all subnets associated with the VPC
+        SUBNETS=$(aws ec2 describe-subnets --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "Subnets[].SubnetId" --output text)
+        for SUBNET in $SUBNETS; do
+            aws ec2 delete-subnet --subnet-id $SUBNET --region $REGION
+        done
+
         # Detach and delete all Internet Gateways associated with the VPC
         IGWS=$(aws ec2 describe-internet-gateways --region $REGION --filters Name=attachment.vpc-id,Values=$VPC_ID --query "InternetGateways[].InternetGatewayId" --output text)
         for IGW in $IGWS; do
             aws ec2 detach-internet-gateway --internet-gateway-id $IGW --vpc-id $VPC_ID --region $REGION
             aws ec2 delete-internet-gateway --internet-gateway-id $IGW --region $REGION
+        done
+
+        # Delete all network ACLs associated with the VPC (excluding the default)
+        NACLS=$(aws ec2 describe-network-acls --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "NetworkAcls[?IsDefault!=`true`].NetworkAclId" --output text)
+        for NACL in $NACLS; do
+            aws ec2 delete-network-acl --network-acl-id $NACL --region $REGION
+        done
+
+        # Delete all security groups associated with the VPC (excluding the default)
+        SEC_GROUPS=$(aws ec2 describe-security-groups --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "SecurityGroups[?GroupName!=`default`].GroupId" --output text)
+        for SEC_GROUP in $SEC_GROUPS; do
+            aws ec2 delete-security-group --group-id $SEC_GROUP --region $REGION
         done
 
         # Detach and delete all NAT Gateways associated with the VPC
