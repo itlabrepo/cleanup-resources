@@ -38,7 +38,7 @@ for REGION in $REGIONS; do
     # Delete all task definitions
     TASK_DEFINITIONS=$(aws ecs list-task-definitions --region $REGION --query "taskDefinitionArns[]" --output text)
     for TASK_DEFINITION_ARN in $TASK_DEFINITIONS; do
-        aws ecs deregister-task-definition --task-definition $TASK_DEFINITION_ARN --region $REGION
+        aws ecs deregister-task-definition --task-definition $TASK_DEFINITION_ARN --region $REGION --query "taskDefinition.taskDefinitionArn" --output text
     done
 done
 
