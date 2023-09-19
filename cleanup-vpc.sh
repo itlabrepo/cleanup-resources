@@ -36,6 +36,11 @@ for REGION in $REGIONS; do
         # Delete all security groups associated with the VPC (excluding the default)
         SEC_GROUPS=$(aws ec2 describe-security-groups --region $REGION --filters Name=vpc-id,Values=$VPC_ID --query "SecurityGroups[?GroupName!=`default`].GroupId" --output text)
         for SEC_GROUP in $SEC_GROUPS; do
+            # Revoke all inbound and outbound rules
+            aws ec2 revoke-security-group-ingress --group-id $SEC_GROUP --protocol all --port all --cidr 0.0.0.0/0 --region $REGION
+            aws ec2 revoke-security-group-egress --group-id $SEC_GROUP --protocol all --port all --cidr 0.0.0.0/0 --region $REGION
+
+            # Delete the security group
             aws ec2 delete-security-group --group-id $SEC_GROUP --region $REGION
         done
 
