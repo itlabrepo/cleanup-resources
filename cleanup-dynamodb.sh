@@ -15,7 +15,7 @@ for REGION in $REGIONS; do
     
     # For each DynamoDB table, attempt to delete it
     for TABLE in $DYNAMO_TABLES; do
-        if aws dynamodb delete-table --table-name $TABLE --region $REGION ; then
+        if aws dynamodb delete-table --table-name $TABLE --region $REGION --query "TableDescription.TableArn" --output text; then
             echo "Successfully deleted DynamoDB table: $TABLE in region: $REGION"
         else
             UNDELETABLE_TABLES="$UNDELETABLE_TABLES $TABLE:$REGION"
