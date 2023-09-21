@@ -10,6 +10,28 @@ REGIONS=$(aws ec2 describe-regions --query "Regions[].RegionName" --output text)
 for REGION in $REGIONS; do
     echo "Checking region: $REGION"
 
+    # Delete all FSx storage virtual machines
+    FSX_SVMS=$(aws fsx describe-storage-virtual-machines --region $REGION --query "StorageVirtualMachines[].StorageVirtualMachineId" --output text)
+    for SVM in $FSX_SVMS; do
+        if aws fsx delete-storage-virtual-machine --storage-virtual-machine-id $SVM --region $REGION ; then
+            echo "Successfully deleted FSx storage virtual machine: $SVM in region: $REGION"
+        else
+            echo "Failed to delete FSx storage virtual machine: $SVM in region: $REGION"
+            UNDELETED_FSX_RESOURCES="$UNDELETED_FSX_RESOURCES SVM:$SVM:$REGION"
+        fi
+    done
+
+    # Delete all FSx volumes
+    FSX_VOLUMES=$(aws fsx describe-volumes --region $REGION --query "Volumes[].VolumeId" --output text)
+    for VOLUME in $FSX_VOLUMES; do
+        if aws fsx delete-volume --volume-id $VOLUME --region $REGION ; then
+            echo "Successfully deleted FSx volume: $VOLUME in region: $REGION"
+        else
+            echo "Failed to delete FSx volume: $VOLUME in region: $REGION"
+            UNDELETED_FSX_RESOURCES="$UNDELETED_FSX_RESOURCES Volume:$VOLUME:$REGION"
+        fi
+    done
+    
     # Delete all FSx file systems
     FSX_FILE_SYSTEMS=$(aws fsx describe-file-systems --region $REGION --query "FileSystems[].FileSystemId" --output text)
     for FS in $FSX_FILE_SYSTEMS; do
